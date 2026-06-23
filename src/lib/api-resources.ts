@@ -217,6 +217,12 @@ export const filesApi = {
     const { data } = await api.post<ApiFile>('/files', input)
     return toFile(data)
   },
+  async upload(file: File): Promise<StoredFile> {
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await api.post<ApiFile>('/files/upload', form)
+    return toFile(data)
+  },
   async remove(id: string) {
     await api.delete(`/files/${id}`)
   },

@@ -96,6 +96,14 @@ export function useCreateFile() {
   })
 }
 
+export function useUploadFile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => filesApi.upload(file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['files'] }),
+  })
+}
+
 export function useDeleteFile() {
   const qc = useQueryClient()
   return useMutation({

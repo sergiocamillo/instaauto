@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   FileText,
   ImageIcon,
@@ -10,8 +10,14 @@ import {
   Trash2,
   FolderClosed,
   X,
+  Upload,
 } from 'lucide-react'
-import { useFiles, useCreateFile, useDeleteFile } from '@/lib/hooks'
+import {
+  useFiles,
+  useCreateFile,
+  useDeleteFile,
+  useUploadFile,
+} from '@/lib/hooks'
 import type { FileType } from '@/lib/types'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -41,8 +47,11 @@ const typeMeta: Record<
 export function Files() {
   const { data: files = [] } = useFiles()
   const deleteFile = useDeleteFile()
+  const uploadFile = useUploadFile()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   function copy(url: string, id: string) {
     navigator.clipboard?.writeText(url)
@@ -50,17 +59,56 @@ export function Files() {
     setTimeout(() => setCopied(null), 1600)
   }
 
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite reenviar o mesmo arquivo
+    if (!file) return
+    setUploadError(null)
+    uploadFile.mutate(file, {
+      onError: (err) => {
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response
+            ?.data?.message ?? 'Falha ao enviar o arquivo.'
+        setUploadError(Array.isArray(msg) ? msg[0] : msg)
+      },
+    })
+  }
+
   return (
     <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={onPickFile}
+      />
       <PageHeader
         title="Arquivos"
         description="Materiais que suas automações entregam por DM."
       >
-        <Button onClick={() => setAdding(true)}>
+        <Button
+          variant="outline"
+          onClick={() => setAdding(true)}
+          disabled={uploadFile.isPending}
+        >
           <Plus className="size-4" />
-          Adicionar arquivo
+          Adicionar por URL
+        </Button>
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          loading={uploadFile.isPending}
+        >
+          {!uploadFile.isPending && <Upload className="size-4" />}
+          Enviar do computador
         </Button>
       </PageHeader>
+
+      {uploadError && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          <X className="size-4 shrink-0" />
+          {uploadError}
+        </div>
+      )}
 
       {files.length === 0 ? (
         <Card>
@@ -69,9 +117,12 @@ export function Files() {
             title="Nenhum arquivo cadastrado"
             description="Adicione PDFs, imagens, vídeos ou documentos para entregar nas suas automações."
             action={
-              <Button onClick={() => setAdding(true)}>
-                <Plus className="size-4" />
-                Adicionar arquivo
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                loading={uploadFile.isPending}
+              >
+                {!uploadFile.isPending && <Upload className="size-4" />}
+                Enviar do computador
               </Button>
             }
           />

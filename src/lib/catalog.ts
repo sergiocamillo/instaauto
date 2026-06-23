@@ -12,6 +12,7 @@ import {
   UserPlus,
   Tag,
   MousePointerClick,
+  MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 import type { ActionType, TriggerType } from './types'
@@ -108,6 +109,12 @@ export const ACTIONS: CatalogEntry<ActionType>[] = [
     label: 'Enviar resposta com botão',
     description: 'Mensagem com um botão clicável e follow-up.',
     icon: MousePointerClick,
+  },
+  {
+    value: 'reply_comment',
+    label: 'Responder o comentário',
+    description: 'Responde publicamente no próprio comentário.',
+    icon: MessageSquare,
   },
 ]
 

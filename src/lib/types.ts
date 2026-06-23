@@ -45,6 +45,7 @@ export type ActionType =
   | 'save_contact'
   | 'add_tag'
   | 'reply_with_button'
+  | 'reply_comment'
 
 export interface AutomationAction {
   id: ID
@@ -54,6 +55,8 @@ export interface AutomationAction {
   /** Free-form, type-dependent configuration (message text, link, file id…). */
   config: {
     message?: string
+    /** Texto da resposta pública ao comentário (ação reply_comment). */
+    comment_reply?: string
     link?: string
     file_id?: ID
     tag?: string

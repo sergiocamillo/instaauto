@@ -28,12 +28,17 @@ import { EmptyState } from '@/components/ui/Misc'
 import { Stepper } from '@/features/wizard/Stepper'
 import { DmPreview, type PreviewDraft } from '@/features/wizard/DmPreview'
 import { MediaPicker } from '@/features/wizard/MediaPicker'
+import {
+  DM_TEMPLATES,
+  COMMENT_REPLY_TEMPLATES,
+} from '@/lib/message-templates'
 
 const STEPS = ['Gatilho', 'Palavra-chave', 'Ação']
 const KEYWORD_EXAMPLES = ['LINK', 'PDF', 'GUIA', 'QUERO', 'IA', 'AULA']
 
 interface ActionConfigState {
   message: string
+  comment_reply: string
   link: string
   file_id: string
   tag: string
@@ -43,6 +48,7 @@ interface ActionConfigState {
 
 const emptyConfig: ActionConfigState = {
   message: '',
+  comment_reply: '',
   link: '',
   file_id: '',
   tag: '',
@@ -87,6 +93,7 @@ export function CreateAutomation() {
     editing.actions.forEach((a) => {
       Object.assign(merged, {
         message: a.config.message ?? merged.message,
+        comment_reply: a.config.comment_reply ?? merged.comment_reply,
         link: a.config.link ?? merged.link,
         file_id: a.config.file_id ?? merged.file_id,
         tag: a.config.tag ?? merged.tag,
@@ -155,6 +162,7 @@ export function CreateAutomation() {
         order,
         config: {
           message: config.message || undefined,
+          comment_reply: config.comment_reply || undefined,
           link: config.link || undefined,
           file_id: config.file_id || undefined,
           tag: config.tag || undefined,
@@ -479,11 +487,34 @@ export function CreateAutomation() {
                     actions.includes('send_link') ||
                     actions.includes('send_file')) && (
                     <div>
-                      <Label>Mensagem</Label>
+                      <Label>Mensagem por DM</Label>
                       <Textarea
                         placeholder="Olá! Que bom te ver por aqui 😊"
                         value={config.message}
                         onChange={(e) => update({ message: e.target.value })}
+                      />
+                      <SuggestionChips
+                        templates={DM_TEMPLATES}
+                        onPick={(t) => update({ message: t })}
+                      />
+                    </div>
+                  )}
+
+                  {actions.includes('reply_comment') && (
+                    <div>
+                      <Label hint="aparece publicamente no comentário">
+                        Resposta ao comentário
+                      </Label>
+                      <Textarea
+                        placeholder="Prontinho! Te mandei tudo na DM 📩"
+                        value={config.comment_reply}
+                        onChange={(e) =>
+                          update({ comment_reply: e.target.value })
+                        }
+                      />
+                      <SuggestionChips
+                        templates={COMMENT_REPLY_TEMPLATES}
+                        onPick={(t) => update({ comment_reply: t })}
                       />
                     </div>
                   )}
@@ -586,6 +617,35 @@ export function CreateAutomation() {
         <div className="lg:sticky lg:top-24 lg:self-start">
           <DmPreview draft={draft} />
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** Chips de sugestão de mensagem; clicar preenche o campo. */
+function SuggestionChips({
+  templates,
+  onPick,
+}: {
+  templates: string[]
+  onPick: (text: string) => void
+}) {
+  return (
+    <div className="mt-2">
+      <p className="mb-1.5 text-xs font-medium text-ink-muted">
+        Sugestões (clique para usar)
+      </p>
+      <div className="flex flex-col gap-1.5">
+        {templates.map((t, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onPick(t)}
+            className="rounded-lg border border-dashed border-border-strong px-3 py-1.5 text-left text-xs text-ink-soft transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+          >
+            {t}
+          </button>
+        ))}
       </div>
     </div>
   )
