@@ -1,0 +1,9 @@
+# Nixpacks — build do frontend (Vite SPA) servido estaticamente no Railway.
+#
+# VITE_API_URL precisa estar definida em build time (Vite injeta no bundle).
+
+[phases.build]
+cmds = ["npm ci", "npm run build"]
+
+[start]
+cmd = "npm run start"
