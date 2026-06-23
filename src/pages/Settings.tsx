@@ -1,5 +1,16 @@
-import { useState } from 'react'
-import { Copy, Check, ShieldCheck, Lock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import {
+  Copy,
+  Check,
+  ShieldCheck,
+  Lock,
+  Plug,
+  CheckCircle2,
+  AlertTriangle,
+  X,
+  Loader2,
+} from 'lucide-react'
 import { InstagramGlyph, FacebookGlyph } from '@/components/icons/Brand'
 import {
   useAccounts,
@@ -9,7 +20,6 @@ import {
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Label } from '@/components/ui/Field'
-import { Switch } from '@/components/ui/Switch'
 import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/Misc'
 
@@ -17,10 +27,42 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api'
 const WEBHOOK_URL = `${API_URL}/webhooks/meta`
 
 export function Settings() {
-  const { data: accounts = [] } = useAccounts()
+  const { data: accounts = [], isLoading } = useAccounts()
   const connect = useConnectAccount()
   const disconnect = useDisconnectAccount()
   const [copied, setCopied] = useState<string | null>(null)
+
+  // Lê o resultado do retorno do OAuth (?connected=1 ou ?error=1&reason=...).
+  const [params, setParams] = useSearchParams()
+
+  // Calcula o banner uma única vez a partir da query inicial (sem effect).
+  const [banner, setBanner] = useState<
+    { kind: 'ok' | 'error'; text: string } | null
+  >(() => {
+    if (params.get('connected')) {
+      return { kind: 'ok', text: 'Conta conectada com sucesso! 🎉' }
+    }
+    if (params.get('error')) {
+      const reason = params.get('reason')
+      return {
+        kind: 'error',
+        text: reason
+          ? `Não foi possível conectar: ${decodeURIComponent(reason)}`
+          : 'Não foi possível conectar. Tente novamente.',
+      }
+    }
+    return null
+  })
+
+  // Limpa os query params da URL após capturá-los.
+  useEffect(() => {
+    if (!params.get('connected') && !params.get('error')) return
+    const next = new URLSearchParams(params)
+    next.delete('connected')
+    next.delete('error')
+    next.delete('reason')
+    setParams(next, { replace: true })
+  }, [params, setParams])
 
   function copy(value: string, key: string) {
     navigator.clipboard?.writeText(value)
@@ -32,6 +74,7 @@ export function Settings() {
   const fbAccount = accounts.find((a) => a.platform === 'facebook')
   const igConnected = igAccount?.status === 'connected'
   const fbConnected = fbAccount?.status === 'connected'
+  const anyConnected = igConnected || fbConnected
 
   return (
     <div>
@@ -40,53 +83,90 @@ export function Settings() {
         description="Conecte sua conta do Instagram e gerencie o webhook da Meta."
       />
 
-      <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
-        <strong className="font-semibold">Integração Meta.</strong> Conectar o
-        Instagram abre o consentimento oficial da Meta. O token é armazenado
-        cifrado no servidor e nunca chega ao navegador.
-      </div>
+      {/* Banner de resultado do OAuth */}
+      {banner && (
+        <div
+          className={
+            'mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ' +
+            (banner.kind === 'ok'
+              ? 'border-success/30 bg-success-soft text-success'
+              : 'border-danger/30 bg-danger-soft text-danger')
+          }
+        >
+          {banner.kind === 'ok' ? (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          )}
+          <span className="flex-1 break-words">{banner.text}</span>
+          <button onClick={() => setBanner(null)} aria-label="Fechar">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Conexão — destaque principal */}
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <CardTitle>Conectar conta</CardTitle>
+          {anyConnected ? (
+            <Badge tone="success">
+              <span className="size-1.5 rounded-full bg-success" />
+              Conectado
+            </Badge>
+          ) : (
+            <Badge tone="warning">Nenhuma conta conectada</Badge>
+          )}
+        </CardHeader>
+        <CardBody>
+          <p className="mb-4 text-sm text-ink-soft">
+            Escolha como conectar seu Instagram. A conexão abre o consentimento
+            oficial da Meta — o token fica cifrado no servidor e nunca chega ao
+            navegador.
+          </p>
+
+          {isLoading ? (
+            <div className="grid h-24 place-items-center">
+              <Loader2 className="size-5 animate-spin text-brand-600" />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ConnectCard
+                provider="instagram"
+                icon={
+                  <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white">
+                    <InstagramGlyph className="size-6" />
+                  </span>
+                }
+                title="Instagram"
+                subtitle="Creator ou Business sem Página do Facebook"
+                handle={igAccount?.handle}
+                connected={igConnected}
+                loading={connect.isPending || disconnect.isPending}
+                onConnect={() => connect.mutate('instagram')}
+                onDisconnect={() => disconnect.mutate('instagram')}
+              />
+              <ConnectCard
+                provider="facebook"
+                icon={
+                  <span className="grid size-11 place-items-center rounded-xl bg-[#1877f2] text-white">
+                    <FacebookGlyph className="size-6" />
+                  </span>
+                }
+                title="Facebook"
+                subtitle="Business com Página vinculada ao Instagram"
+                handle={fbAccount?.handle}
+                connected={fbConnected}
+                loading={connect.isPending || disconnect.isPending}
+                onConnect={() => connect.mutate('facebook')}
+                onDisconnect={() => disconnect.mutate('facebook')}
+              />
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Connected accounts */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Contas conectadas</CardTitle>
-          </CardHeader>
-          <CardBody className="space-y-3">
-            <AccountRow
-              icon={
-                <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white">
-                  <InstagramGlyph className="size-5" />
-                </span>
-              }
-              name="Instagram"
-              hint="Creator/Business sem Página"
-              handle={igAccount?.handle ?? ''}
-              connected={igConnected}
-              onToggle={() =>
-                igConnected
-                  ? disconnect.mutate('instagram')
-                  : connect.mutate('instagram')
-              }
-            />
-            <AccountRow
-              icon={
-                <span className="grid size-10 place-items-center rounded-xl bg-[#1877f2] text-white">
-                  <FacebookGlyph className="size-5" />
-                </span>
-              }
-              name="Facebook"
-              hint="Business com Página vinculada"
-              handle={fbAccount?.handle ?? ''}
-              connected={fbConnected}
-              onToggle={() =>
-                fbConnected
-                  ? disconnect.mutate('facebook')
-                  : connect.mutate('facebook')
-              }
-            />
-          </CardBody>
-        </Card>
 
         {/* Connection status */}
         <Card>
@@ -95,21 +175,28 @@ export function Settings() {
           </CardHeader>
           <CardBody>
             <div className="flex items-center gap-3 rounded-xl bg-canvas p-4">
-              <span className="grid size-11 place-items-center rounded-full bg-success-soft text-success">
+              <span
+                className={
+                  'grid size-11 place-items-center rounded-full ' +
+                  (anyConnected
+                    ? 'bg-success-soft text-success'
+                    : 'bg-canvas text-ink-muted ring-1 ring-border')
+                }
+              >
                 <ShieldCheck className="size-5" />
               </span>
               <div>
                 <p className="text-sm font-medium text-ink">
-                  {igConnected ? 'Webhook ativo' : 'Aguardando conexão'}
+                  {anyConnected ? 'Webhook ativo' : 'Aguardando conexão'}
                 </p>
                 <p className="text-xs text-ink-soft">
-                  {igConnected
+                  {anyConnected
                     ? 'Recebendo eventos de comentários e DMs.'
-                    : 'Conecte o Instagram para começar a receber eventos.'}
+                    : 'Conecte uma conta para começar a receber eventos.'}
                 </p>
               </div>
-              <Badge tone={igConnected ? 'success' : 'neutral'} className="ml-auto">
-                {igConnected ? 'Online' : 'Offline'}
+              <Badge tone={anyConnected ? 'success' : 'neutral'} className="ml-auto">
+                {anyConnected ? 'Online' : 'Offline'}
               </Badge>
             </div>
             <p className="mt-3 text-xs text-ink-muted">
@@ -168,34 +255,76 @@ export function Settings() {
   )
 }
 
-function AccountRow({
+function ConnectCard({
   icon,
-  name,
-  hint,
+  title,
+  subtitle,
   handle,
   connected,
-  onToggle,
+  loading,
+  onConnect,
+  onDisconnect,
 }: {
+  provider: 'instagram' | 'facebook'
   icon: React.ReactNode
-  name: string
-  hint?: string
-  handle: string
+  title: string
+  subtitle: string
+  handle?: string
   connected: boolean
-  onToggle: () => void
+  loading: boolean
+  onConnect: () => void
+  onDisconnect: () => void
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border p-3.5">
-      {icon}
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-ink">{name}</p>
-        <p className="truncate text-xs text-ink-muted">
-          {connected ? handle : (hint ?? 'Não conectado')}
-        </p>
+    <div
+      className={
+        'flex flex-col rounded-xl border p-4 transition-colors ' +
+        (connected
+          ? 'border-success/30 bg-success-soft/30'
+          : 'border-border bg-surface')
+      }
+    >
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-ink">{title}</p>
+            {connected && (
+              <Badge tone="success">
+                <Check className="size-3" />
+                Conectado
+              </Badge>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-ink-soft">
+            {connected && handle ? handle : subtitle}
+          </p>
+        </div>
       </div>
-      <Badge tone={connected ? 'success' : 'neutral'}>
-        {connected ? 'Conectado' : 'Desconectado'}
-      </Badge>
-      <Switch checked={connected} onChange={onToggle} label={`Conectar ${name}`} />
+
+      <div className="mt-4">
+        {connected ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={loading}
+            onClick={onDisconnect}
+          >
+            Desconectar
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="w-full"
+            loading={loading}
+            onClick={onConnect}
+          >
+            {!loading && <Plug className="size-4" />}
+            Conectar {title}
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
