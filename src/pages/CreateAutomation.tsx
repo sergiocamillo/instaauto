@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,119 +8,168 @@ import {
   X,
   Link2,
   Loader2,
-} from 'lucide-react'
-import { cn } from '@/lib/cn'
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/cn";
 import {
   useFiles,
   useAutomations,
   useCreateAutomation,
   useUpdateAutomation,
   useHasConnectedAccount,
-} from '@/lib/hooks'
-import { type AutomationInput } from '@/lib/api-resources'
-import { ACTIONS, TRIGGERS } from '@/lib/catalog'
-import type { ActionType, KeywordMatch, TriggerType } from '@/lib/types'
-import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Input, Label, Textarea } from '@/components/ui/Field'
-import { Badge } from '@/components/ui/Badge'
-import { EmptyState } from '@/components/ui/Misc'
-import { Stepper } from '@/features/wizard/Stepper'
-import { DmPreview, type PreviewDraft } from '@/features/wizard/DmPreview'
-import { MediaPicker } from '@/features/wizard/MediaPicker'
-import {
-  DM_TEMPLATES,
-  COMMENT_REPLY_TEMPLATES,
-} from '@/lib/message-templates'
+} from "@/lib/hooks";
+import { type AutomationInput } from "@/lib/api-resources";
+import { ACTIONS, TRIGGERS } from "@/lib/catalog";
+import type { ActionType, KeywordMatch, TriggerType } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input, Label, Textarea } from "@/components/ui/Field";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/Misc";
+import { Stepper } from "@/features/wizard/Stepper";
+import { DmPreview, type PreviewDraft } from "@/features/wizard/DmPreview";
+import { MediaPicker } from "@/features/wizard/MediaPicker";
+import { DM_TEMPLATES, COMMENT_REPLY_TEMPLATES } from "@/lib/message-templates";
 
-const STEPS = ['Gatilho', 'Palavra-chave', 'Ação']
-const KEYWORD_EXAMPLES = ['LINK', 'PDF', 'GUIA', 'QUERO', 'IA', 'AULA']
+const STEPS = ["Gatilho", "Palavra-chave", "Ação"];
+const KEYWORD_EXAMPLES = ["LINK", "PDF", "GUIA", "QUERO", "IA", "AULA"];
 
 interface ActionConfigState {
-  message: string
-  comment_reply: string
-  link: string
-  file_id: string
-  tag: string
-  button_label: string
-  button_followup: string
+  message: string;
+  comment_reply: string;
+  steps: MessageStepState[];
+  link: string;
+  file_id: string;
+  tag: string;
+  button_label: string;
+  button_followup: string;
 }
+
+interface MessageStepState {
+  message: string;
+  delay_minutes: number;
+  wait_for_reply: boolean;
+}
+
+const defaultStep: MessageStepState = {
+  message: "",
+  delay_minutes: 0,
+  wait_for_reply: false,
+};
 
 const emptyConfig: ActionConfigState = {
-  message: '',
-  comment_reply: '',
-  link: '',
-  file_id: '',
-  tag: '',
-  button_label: '',
-  button_followup: '',
-}
+  message: "",
+  comment_reply: "",
+  steps: [{ ...defaultStep }],
+  link: "",
+  file_id: "",
+  tag: "",
+  button_label: "",
+  button_followup: "",
+};
 
 export function CreateAutomation() {
-  const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const editId = params.get('edit')
-  const { data: files = [] } = useFiles()
-  const { data: automations = [] } = useAutomations()
-  const createAutomation = useCreateAutomation()
-  const updateAutomation = useUpdateAutomation()
-  const { connected, isLoading: checkingAccount } = useHasConnectedAccount()
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const editId = params.get("edit");
+  const { data: files = [] } = useFiles();
+  const { data: automations = [] } = useAutomations();
+  const createAutomation = useCreateAutomation();
+  const updateAutomation = useUpdateAutomation();
+  const { connected, isLoading: checkingAccount } = useHasConnectedAccount();
 
   const editing = useMemo(
     () => automations.find((a) => a.id === editId),
     [automations, editId],
-  )
+  );
 
-  const [step, setStep] = useState(0)
-  const [name, setName] = useState(editing?.name ?? '')
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState(editing?.name ?? "");
   const [trigger, setTrigger] = useState<TriggerType | null>(
     editing?.trigger.type ?? null,
-  )
-  const [target, setTarget] = useState(editing?.trigger.target_ref ?? '')
+  );
+  const [target, setTarget] = useState(editing?.trigger.target_ref ?? "");
   const [keywordMatch, setKeywordMatch] = useState<KeywordMatch>(
-    editing?.trigger.keyword_match ?? 'specific',
-  )
+    editing?.trigger.keyword_match ?? "specific",
+  );
   const [keywords, setKeywords] = useState<string[]>(
     editing?.trigger.keywords ?? [],
-  )
-  const [keywordInput, setKeywordInput] = useState('')
+  );
+  const [keywordInput, setKeywordInput] = useState("");
   const [actions, setActions] = useState<ActionType[]>(
     editing?.actions.map((a) => a.type) ?? [],
-  )
+  );
   const [config, setConfig] = useState<ActionConfigState>(() => {
-    if (!editing) return emptyConfig
-    const merged = { ...emptyConfig }
+    if (!editing) return emptyConfig;
+    const merged = { ...emptyConfig };
     editing.actions.forEach((a) => {
+      const steps = Array.isArray(a.config.steps)
+        ? a.config.steps.map((step) => ({
+            message: String(step.message ?? ""),
+            delay_minutes: Number(step.delay_minutes ?? 0),
+            wait_for_reply: Boolean(step.wait_for_reply),
+          }))
+        : undefined;
       Object.assign(merged, {
         message: a.config.message ?? merged.message,
         comment_reply: a.config.comment_reply ?? merged.comment_reply,
+        steps:
+          steps && steps.length > 0
+            ? steps
+            : a.config.message
+              ? [{ ...defaultStep, message: String(a.config.message) }]
+              : merged.steps,
         link: a.config.link ?? merged.link,
         file_id: a.config.file_id ?? merged.file_id,
         tag: a.config.tag ?? merged.tag,
         button_label: a.config.button_label ?? merged.button_label,
         button_followup: a.config.button_followup ?? merged.button_followup,
-      })
-    })
-    return merged
-  })
+      });
+    });
+    return merged;
+  });
 
-  const selectedTrigger = TRIGGERS.find((t) => t.value === trigger)
-  const needsTarget = selectedTrigger?.needsTarget ?? false
+  const selectedTrigger = TRIGGERS.find((t) => t.value === trigger);
+  const needsTarget = selectedTrigger?.needsTarget ?? false;
 
   const update = (patch: Partial<ActionConfigState>) =>
-    setConfig((c) => ({ ...c, ...patch }))
+    setConfig((c) => ({ ...c, ...patch }));
+
+  function updateStep(index: number, patch: Partial<MessageStepState>) {
+    setConfig((c) => ({
+      ...c,
+      steps: c.steps.map((step, i) =>
+        i === index ? { ...step, ...patch } : step,
+      ),
+    }));
+  }
+
+  function addStep() {
+    setConfig((c) => ({ ...c, steps: [...c.steps, { ...defaultStep }] }));
+  }
+
+  function removeStep(index: number) {
+    setConfig((c) => ({
+      ...c,
+      steps:
+        c.steps.length === 1
+          ? [{ ...defaultStep }]
+          : c.steps.filter((_, i) => i !== index),
+    }));
+  }
 
   function toggleAction(a: ActionType) {
     setActions((prev) =>
       prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a],
-    )
+    );
   }
 
   function addKeyword(value: string) {
-    const v = value.trim().toUpperCase()
-    if (!v || keywords.includes(v)) return
-    setKeywords((k) => [...k, v])
-    setKeywordInput('')
+    const v = value.trim().toUpperCase();
+    if (!v || keywords.includes(v)) return;
+    setKeywords((k) => [...k, v]);
+    setKeywordInput("");
   }
 
   // Step validation
@@ -128,41 +177,59 @@ export function CreateAutomation() {
     step === 0
       ? Boolean(trigger) && (!needsTarget || target.trim().length > 0)
       : step === 1
-        ? keywordMatch === 'any' || keywords.length > 0
-        : actions.length > 0
+        ? keywordMatch === "any" || keywords.length > 0
+        : actions.length > 0;
 
   const draft: PreviewDraft = {
-    triggerLabel: selectedTrigger?.label ?? '',
+    triggerLabel: selectedTrigger?.label ?? "",
     keywords,
     keywordMatch,
     actions,
-    message: config.message,
+    message:
+      config.steps.find((s) => s.message.trim())?.message ?? config.message,
+    steps: config.steps,
     link: config.link,
     buttonLabel: config.button_label,
     buttonFollowup: config.button_followup,
     file: files.find((f) => f.id === config.file_id),
-  }
+  };
 
   function handleSave() {
     const autoName =
       name.trim() ||
-      `${keywords[0] ?? 'Automação'} · ${selectedTrigger?.label ?? ''}`
+      `${keywords[0] ?? "Automação"} · ${selectedTrigger?.label ?? ""}`;
 
     const input: AutomationInput = {
       name: autoName,
-      status: editing?.status ?? 'active',
+      status: editing?.status ?? "active",
       trigger: {
         type: trigger!,
         targetRef: needsTarget ? target : undefined,
         keywordMatch,
-        keywords: keywordMatch === 'any' ? [] : keywords,
+        keywords: keywordMatch === "any" ? [] : keywords,
       },
       actions: actions.map((type, order) => ({
         type,
         order,
         config: {
-          message: config.message || undefined,
+          message:
+            config.steps.find((s) => s.message.trim())?.message ||
+            config.message ||
+            undefined,
           comment_reply: config.comment_reply || undefined,
+          steps:
+            type === "send_dm" ||
+            type === "send_link" ||
+            type === "reply_with_button" ||
+            type === "send_file"
+              ? config.steps
+                  .filter((s) => s.message.trim())
+                  .map((s) => ({
+                    message: s.message,
+                    delay_minutes: Math.max(0, Number(s.delay_minutes) || 0),
+                    wait_for_reply: s.wait_for_reply,
+                  }))
+              : undefined,
           link: config.link || undefined,
           file_id: config.file_id || undefined,
           tag: config.tag || undefined,
@@ -170,13 +237,13 @@ export function CreateAutomation() {
           button_followup: config.button_followup || undefined,
         },
       })),
-    }
+    };
 
-    const onSuccess = () => navigate('/automacoes')
+    const onSuccess = () => navigate("/automacoes");
     if (editing) {
-      updateAutomation.mutate({ id: editing.id, input }, { onSuccess })
+      updateAutomation.mutate({ id: editing.id, input }, { onSuccess });
     } else {
-      createAutomation.mutate(input, { onSuccess })
+      createAutomation.mutate(input, { onSuccess });
     }
   }
 
@@ -186,14 +253,14 @@ export function CreateAutomation() {
       <div className="grid h-64 place-items-center">
         <Loader2 className="size-6 animate-spin text-brand-600" />
       </div>
-    )
+    );
   }
 
   if (!connected) {
     return (
       <div>
         <button
-          onClick={() => navigate('/automacoes')}
+          onClick={() => navigate("/automacoes")}
           className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink"
         >
           <ArrowLeft className="size-4" />
@@ -205,20 +272,20 @@ export function CreateAutomation() {
             title="Conecte uma conta primeiro"
             description="Para criar automações você precisa conectar uma conta do Instagram (via Instagram ou Facebook) nas Configurações."
             action={
-              <Button onClick={() => navigate('/configuracoes')}>
+              <Button onClick={() => navigate("/configuracoes")}>
                 Ir para Configurações
               </Button>
             }
           />
         </Card>
       </div>
-    )
+    );
   }
 
   return (
     <div>
       <button
-        onClick={() => navigate('/automacoes')}
+        onClick={() => navigate("/automacoes")}
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink"
       >
         <ArrowLeft className="size-4" />
@@ -228,7 +295,7 @@ export function CreateAutomation() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">
-            {editing ? 'Editar automação' : 'Criar automação'}
+            {editing ? "Editar automação" : "Criar automação"}
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
             Configure o gatilho, a palavra-chave e a ação em 3 passos.
@@ -260,24 +327,24 @@ export function CreateAutomation() {
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {TRIGGERS.map((t) => {
-                  const active = trigger === t.value
+                  const active = trigger === t.value;
                   return (
                     <button
                       key={t.value}
                       onClick={() => setTrigger(t.value)}
                       className={cn(
-                        'flex items-start gap-3 rounded-xl border p-4 text-left transition-all',
+                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
                         active
-                          ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                          : 'border-border bg-surface hover:border-border-strong hover:bg-canvas',
+                          ? "border-brand-500 bg-brand-50 ring-1 ring-brand-200"
+                          : "border-border bg-surface hover:border-border-strong hover:bg-canvas",
                       )}
                     >
                       <div
                         className={cn(
-                          'grid size-9 shrink-0 place-items-center rounded-lg',
+                          "grid size-9 shrink-0 place-items-center rounded-lg",
                           active
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-canvas text-ink-soft',
+                            ? "bg-brand-600 text-white"
+                            : "bg-canvas text-ink-soft",
                         )}
                       >
                         <t.icon className="size-[18px]" />
@@ -294,20 +361,20 @@ export function CreateAutomation() {
                         <Check className="ml-auto size-4 shrink-0 text-brand-600" />
                       )}
                     </button>
-                  )
+                  );
                 })}
               </div>
 
               {needsTarget && (
                 <div className="mt-4">
                   <Label hint="selecione a mídia da sua conta">
-                    {trigger === 'reel_comment_specific'
-                      ? 'Qual Reel?'
-                      : 'Qual publicação?'}
+                    {trigger === "reel_comment_specific"
+                      ? "Qual Reel?"
+                      : "Qual publicação?"}
                   </Label>
                   <MediaPicker
                     filter={
-                      trigger === 'reel_comment_specific' ? 'reel' : 'post'
+                      trigger === "reel_comment_specific" ? "reel" : "post"
                     }
                     value={target}
                     onChange={setTarget}
@@ -328,30 +395,28 @@ export function CreateAutomation() {
               </p>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {(
-                  [
-                    {
-                      value: 'any' as const,
-                      title: 'Qualquer palavra',
-                      desc: 'Responde a qualquer comentário ou mensagem.',
-                    },
-                    {
-                      value: 'specific' as const,
-                      title: 'Palavra ou expressão específica',
-                      desc: 'Responde só quando a palavra exata for usada.',
-                    },
-                  ]
-                ).map((opt) => {
-                  const active = keywordMatch === opt.value
+                {[
+                  {
+                    value: "any" as const,
+                    title: "Qualquer palavra",
+                    desc: "Responde a qualquer comentário ou mensagem.",
+                  },
+                  {
+                    value: "specific" as const,
+                    title: "Palavra ou expressão específica",
+                    desc: "Responde só quando a palavra exata for usada.",
+                  },
+                ].map((opt) => {
+                  const active = keywordMatch === opt.value;
                   return (
                     <button
                       key={opt.value}
                       onClick={() => setKeywordMatch(opt.value)}
                       className={cn(
-                        'rounded-xl border p-4 text-left transition-all',
+                        "rounded-xl border p-4 text-left transition-all",
                         active
-                          ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                          : 'border-border hover:border-border-strong hover:bg-canvas',
+                          ? "border-brand-500 bg-brand-50 ring-1 ring-brand-200"
+                          : "border-border hover:border-border-strong hover:bg-canvas",
                       )}
                     >
                       <div className="flex items-center justify-between">
@@ -362,11 +427,11 @@ export function CreateAutomation() {
                       </div>
                       <p className="mt-0.5 text-xs text-ink-soft">{opt.desc}</p>
                     </button>
-                  )
+                  );
                 })}
               </div>
 
-              {keywordMatch === 'specific' && (
+              {keywordMatch === "specific" && (
                 <div className="mt-5">
                   <Label hint="pressione Enter para adicionar">
                     Palavras-chave
@@ -375,9 +440,9 @@ export function CreateAutomation() {
                     value={keywordInput}
                     onChange={(e) => setKeywordInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addKeyword(keywordInput)
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addKeyword(keywordInput);
                       }
                     }}
                     placeholder="Digite uma palavra e pressione Enter"
@@ -437,24 +502,24 @@ export function CreateAutomation() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {ACTIONS.map((a) => {
-                  const active = actions.includes(a.value)
+                  const active = actions.includes(a.value);
                   return (
                     <button
                       key={a.value}
                       onClick={() => toggleAction(a.value)}
                       className={cn(
-                        'flex items-start gap-3 rounded-xl border p-4 text-left transition-all',
+                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
                         active
-                          ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                          : 'border-border hover:border-border-strong hover:bg-canvas',
+                          ? "border-brand-500 bg-brand-50 ring-1 ring-brand-200"
+                          : "border-border hover:border-border-strong hover:bg-canvas",
                       )}
                     >
                       <div
                         className={cn(
-                          'grid size-9 shrink-0 place-items-center rounded-lg',
+                          "grid size-9 shrink-0 place-items-center rounded-lg",
                           active
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-canvas text-ink-soft',
+                            ? "bg-brand-600 text-white"
+                            : "bg-canvas text-ink-soft",
                         )}
                       >
                         <a.icon className="size-[18px]" />
@@ -471,7 +536,7 @@ export function CreateAutomation() {
                         <Check className="ml-auto size-4 shrink-0 text-brand-600" />
                       )}
                     </button>
-                  )
+                  );
                 })}
               </div>
 
@@ -482,25 +547,87 @@ export function CreateAutomation() {
                     Configurar conteúdo
                   </p>
 
-                  {(actions.includes('send_dm') ||
-                    actions.includes('reply_with_button') ||
-                    actions.includes('send_link') ||
-                    actions.includes('send_file')) && (
-                    <div>
-                      <Label>Mensagem por DM</Label>
-                      <Textarea
-                        placeholder="Olá! Que bom te ver por aqui 😊"
-                        value={config.message}
-                        onChange={(e) => update({ message: e.target.value })}
-                      />
+                  {(actions.includes("send_dm") ||
+                    actions.includes("reply_with_button") ||
+                    actions.includes("send_link") ||
+                    actions.includes("send_file")) && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>Fluxo de mensagens por DM</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addStep}
+                        >
+                          <Plus className="size-4" />
+                          Mensagem
+                        </Button>
+                      </div>
+
+                      {config.steps.map((stepItem, index) => (
+                        <div
+                          key={index}
+                          className="rounded-lg border border-border bg-surface p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold text-ink-muted">
+                              Mensagem {index + 1}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeStep(index)}
+                              className="rounded-md p-1 text-ink-muted hover:bg-danger-soft hover:text-danger"
+                              aria-label="Remover mensagem"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                          <Textarea
+                            placeholder="Olá! Que bom te ver por aqui 😊"
+                            value={stepItem.message}
+                            onChange={(e) =>
+                              updateStep(index, { message: e.target.value })
+                            }
+                          />
+                          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                            <div>
+                              <Label>Enviar após</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={stepItem.delay_minutes}
+                                onChange={(e) =>
+                                  updateStep(index, {
+                                    delay_minutes: Number(e.target.value) || 0,
+                                  })
+                                }
+                              />
+                            </div>
+                            <label className="flex items-end gap-2 pb-2 text-sm text-ink-soft">
+                              <input
+                                type="checkbox"
+                                checked={stepItem.wait_for_reply}
+                                onChange={(e) =>
+                                  updateStep(index, {
+                                    wait_for_reply: e.target.checked,
+                                  })
+                                }
+                              />
+                              Após próxima resposta
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+
                       <SuggestionChips
                         templates={DM_TEMPLATES}
-                        onPick={(t) => update({ message: t })}
+                        onPick={(t) => updateStep(0, { message: t })}
                       />
                     </div>
                   )}
 
-                  {actions.includes('reply_comment') && (
+                  {actions.includes("reply_comment") && (
                     <div>
                       <Label hint="aparece publicamente no comentário">
                         Resposta ao comentário
@@ -519,8 +646,8 @@ export function CreateAutomation() {
                     </div>
                   )}
 
-                  {(actions.includes('send_link') ||
-                    actions.includes('reply_with_button')) && (
+                  {(actions.includes("send_link") ||
+                    actions.includes("reply_with_button")) && (
                     <div>
                       <Label>Link</Label>
                       <Input
@@ -531,7 +658,7 @@ export function CreateAutomation() {
                     </div>
                   )}
 
-                  {actions.includes('reply_with_button') && (
+                  {actions.includes("reply_with_button") && (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <Label>Texto do botão</Label>
@@ -556,7 +683,7 @@ export function CreateAutomation() {
                     </div>
                   )}
 
-                  {actions.includes('send_file') && (
+                  {actions.includes("send_file") && (
                     <div>
                       <Label>Arquivo</Label>
                       <select
@@ -574,7 +701,7 @@ export function CreateAutomation() {
                     </div>
                   )}
 
-                  {actions.includes('add_tag') && (
+                  {actions.includes("add_tag") && (
                     <div>
                       <Label>Tag</Label>
                       <Input
@@ -593,10 +720,12 @@ export function CreateAutomation() {
           <div className="flex items-center justify-between">
             <Button
               variant="outline"
-              onClick={() => (step === 0 ? navigate('/automacoes') : setStep(step - 1))}
+              onClick={() =>
+                step === 0 ? navigate("/automacoes") : setStep(step - 1)
+              }
             >
               <ArrowLeft className="size-4" />
-              {step === 0 ? 'Cancelar' : 'Voltar'}
+              {step === 0 ? "Cancelar" : "Voltar"}
             </Button>
 
             {step < STEPS.length - 1 ? (
@@ -607,7 +736,7 @@ export function CreateAutomation() {
             ) : (
               <Button disabled={!canNext} onClick={handleSave}>
                 <Sparkles className="size-4" />
-                {editing ? 'Salvar alterações' : 'Ativar automação'}
+                {editing ? "Salvar alterações" : "Ativar automação"}
               </Button>
             )}
           </div>
@@ -619,7 +748,7 @@ export function CreateAutomation() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /** Chips de sugestão de mensagem; clicar preenche o campo. */
@@ -627,8 +756,8 @@ function SuggestionChips({
   templates,
   onPick,
 }: {
-  templates: string[]
-  onPick: (text: string) => void
+  templates: string[];
+  onPick: (text: string) => void;
 }) {
   return (
     <div className="mt-2">
@@ -648,5 +777,5 @@ function SuggestionChips({
         ))}
       </div>
     </div>
-  )
+  );
 }

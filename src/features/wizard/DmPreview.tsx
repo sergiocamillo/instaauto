@@ -1,17 +1,22 @@
-import { InstagramGlyph } from '@/components/icons/Brand'
-import type { ActionType } from '@/lib/types'
-import type { StoredFile } from '@/lib/types'
+import { InstagramGlyph } from "@/components/icons/Brand";
+import type { ActionType } from "@/lib/types";
+import type { StoredFile } from "@/lib/types";
 
 export interface PreviewDraft {
-  triggerLabel: string
-  keywords: string[]
-  keywordMatch: 'any' | 'specific'
-  actions: ActionType[]
-  message?: string
-  link?: string
-  buttonLabel?: string
-  buttonFollowup?: string
-  file?: StoredFile
+  triggerLabel: string;
+  keywords: string[];
+  keywordMatch: "any" | "specific";
+  actions: ActionType[];
+  message?: string;
+  steps?: Array<{
+    message: string;
+    delay_minutes?: number;
+    wait_for_reply?: boolean;
+  }>;
+  link?: string;
+  buttonLabel?: string;
+  buttonFollowup?: string;
+  file?: StoredFile;
 }
 
 function Bubble({ children }: { children: React.ReactNode }) {
@@ -19,13 +24,15 @@ function Bubble({ children }: { children: React.ReactNode }) {
     <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-ink shadow-sm">
       {children}
     </div>
-  )
+  );
 }
 
 /** Instagram-style chat preview reflecting the draft automation. */
 export function DmPreview({ draft }: { draft: PreviewDraft }) {
-  const sample = draft.keywords[0] ?? (draft.keywordMatch === 'any' ? 'Oi!' : 'LINK')
-  const hasButton = draft.actions.includes('reply_with_button')
+  const sample =
+    draft.keywords[0] ?? (draft.keywordMatch === "any" ? "Oi!" : "LINK");
+  const hasButton = draft.actions.includes("reply_with_button");
+  const steps = draft.steps?.filter((s) => s.message.trim()) ?? [];
 
   return (
     <div className="mx-auto w-full max-w-[300px]">
@@ -48,8 +55,22 @@ export function DmPreview({ draft }: { draft: PreviewDraft }) {
             {sample}
           </div>
 
-          {/* Automation reply */}
-          {draft.message ? (
+          {steps.length > 0 ? (
+            steps.map((step, index) => (
+              <div key={index} className="contents">
+                {(step.delay_minutes || step.wait_for_reply) && (
+                  <p className="max-w-[80%] text-[10px] font-medium text-ink-muted">
+                    {step.wait_for_reply
+                      ? "após próxima resposta"
+                      : `${step.delay_minutes} min depois`}
+                  </p>
+                )}
+                <Bubble>
+                  <span className="whitespace-pre-line">{step.message}</span>
+                </Bubble>
+              </div>
+            ))
+          ) : draft.message ? (
             <Bubble>
               <span className="whitespace-pre-line">{draft.message}</span>
             </Bubble>
@@ -63,11 +84,11 @@ export function DmPreview({ draft }: { draft: PreviewDraft }) {
 
           {hasButton && (
             <button className="max-w-[80%] rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-brand-700 shadow-sm">
-              {draft.buttonLabel || 'Botão'}
+              {draft.buttonLabel || "Botão"}
             </button>
           )}
 
-          {draft.actions.includes('send_link') && draft.link && (
+          {draft.actions.includes("send_link") && draft.link && (
             <Bubble>
               <span className="break-all font-medium text-brand-600 underline">
                 {draft.link}
@@ -77,11 +98,13 @@ export function DmPreview({ draft }: { draft: PreviewDraft }) {
 
           {hasButton && draft.buttonFollowup && (
             <Bubble>
-              <span className="whitespace-pre-line">{draft.buttonFollowup}</span>
+              <span className="whitespace-pre-line">
+                {draft.buttonFollowup}
+              </span>
             </Bubble>
           )}
 
-          {draft.actions.includes('send_file') && draft.file && (
+          {draft.actions.includes("send_file") && draft.file && (
             <Bubble>
               <span className="flex items-center gap-2">
                 📎 <span className="font-medium">{draft.file.name}</span>
@@ -94,5 +117,5 @@ export function DmPreview({ draft }: { draft: PreviewDraft }) {
         Pré-visualização ao vivo
       </p>
     </div>
-  )
+  );
 }

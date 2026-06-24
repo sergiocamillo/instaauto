@@ -72,8 +72,8 @@ export function MediaPicker({ filter, value, onChange }: MediaPickerProps) {
   return (
     <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto rounded-xl border border-border bg-canvas p-2 sm:grid-cols-4">
       {items.map((m) => {
-        const ref = m.permalink ?? m.id
-        const selected = value === ref
+        const ref = m.id
+        const selected = value === m.id || value === m.permalink
         return (
           <button
             key={m.id}
