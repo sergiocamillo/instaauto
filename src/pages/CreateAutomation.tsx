@@ -10,6 +10,10 @@ import {
   Loader2,
   Plus,
   Trash2,
+  ChevronUp,
+  ChevronDown,
+  Clock3,
+  MessageCircleReply,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -177,6 +181,16 @@ export function CreateAutomation() {
           ? [{ ...defaultStep }]
           : c.steps.filter((_, i) => i !== index),
     }));
+  }
+
+  function moveStep(index: number, direction: -1 | 1) {
+    setConfig((c) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= c.steps.length) return c;
+      const steps = [...c.steps];
+      [steps[index], steps[targetIndex]] = [steps[targetIndex], steps[index]];
+      return { ...c, steps };
+    });
   }
 
   function updateCommentReply(index: number, value: string) {
@@ -622,7 +636,12 @@ export function CreateAutomation() {
                     actions.includes("send_file")) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <Label>Fluxo de mensagens por DM</Label>
+                        <div>
+                          <Label>Fluxo de mensagens por DM</Label>
+                          <p className="mt-1 text-xs text-ink-muted">
+                            Sequência linear com ordem, espera e continuação.
+                          </p>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
@@ -630,64 +649,130 @@ export function CreateAutomation() {
                           onClick={addStep}
                         >
                           <Plus className="size-4" />
-                          Mensagem
+                          Etapa
                         </Button>
                       </div>
 
-                      {config.steps.map((stepItem, index) => (
-                        <div
-                          key={index}
-                          className="rounded-lg border border-border bg-surface p-3"
-                        >
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <p className="text-xs font-semibold text-ink-muted">
-                              Mensagem {index + 1}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => removeStep(index)}
-                              className="rounded-md p-1 text-ink-muted hover:bg-danger-soft hover:text-danger"
-                              aria-label="Remover mensagem"
+                      <div className="space-y-0">
+                        {config.steps.map((stepItem, index) => {
+                          const isFirst = index === 0;
+                          const isLast = index === config.steps.length - 1;
+                          const timingLabel = stepItem.wait_for_reply
+                            ? "Após próxima resposta"
+                            : stepItem.delay_minutes > 0
+                              ? `${stepItem.delay_minutes} min depois`
+                              : isFirst
+                                ? "Imediata"
+                                : "Na sequência";
+
+                          return (
+                            <div
+                              key={index}
+                              className="grid grid-cols-[34px_1fr] gap-3"
                             >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                          <Textarea
-                            placeholder="Olá! Que bom te ver por aqui 😊"
-                            value={stepItem.message}
-                            onChange={(e) =>
-                              updateStep(index, { message: e.target.value })
-                            }
-                          />
-                          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
-                            <div>
-                              <Label>Enviar após</Label>
-                              <Input
-                                type="number"
-                                min={0}
-                                value={stepItem.delay_minutes}
-                                onChange={(e) =>
-                                  updateStep(index, {
-                                    delay_minutes: Number(e.target.value) || 0,
-                                  })
-                                }
-                              />
+                              <div className="flex flex-col items-center">
+                                <div className="grid size-8 place-items-center rounded-full border border-brand-200 bg-brand-50 text-xs font-semibold text-brand-700">
+                                  {index + 1}
+                                </div>
+                                {!isLast && (
+                                  <div className="h-full min-h-5 w-px bg-border-strong" />
+                                )}
+                              </div>
+
+                              <div className={cn("pb-3", isLast && "pb-0")}>
+                                <div className="rounded-lg border border-border bg-surface p-3 shadow-sm">
+                                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold text-ink">
+                                        Mensagem {index + 1}
+                                      </p>
+                                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-canvas px-2 py-1 text-xs font-medium text-ink-soft">
+                                        {stepItem.wait_for_reply ? (
+                                          <MessageCircleReply className="size-3.5" />
+                                        ) : (
+                                          <Clock3 className="size-3.5" />
+                                        )}
+                                        {timingLabel}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => moveStep(index, -1)}
+                                        disabled={isFirst}
+                                        className="grid size-8 place-items-center rounded-md text-ink-muted hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+                                        aria-label="Mover etapa para cima"
+                                      >
+                                        <ChevronUp className="size-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => moveStep(index, 1)}
+                                        disabled={isLast}
+                                        className="grid size-8 place-items-center rounded-md text-ink-muted hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+                                        aria-label="Mover etapa para baixo"
+                                      >
+                                        <ChevronDown className="size-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeStep(index)}
+                                        className="grid size-8 place-items-center rounded-md text-ink-muted hover:bg-danger-soft hover:text-danger"
+                                        aria-label="Remover mensagem"
+                                      >
+                                        <Trash2 className="size-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <Textarea
+                                    placeholder="Olá! Que bom te ver por aqui 😊"
+                                    value={stepItem.message}
+                                    onChange={(e) =>
+                                      updateStep(index, {
+                                        message: e.target.value,
+                                      })
+                                    }
+                                  />
+
+                                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(120px,160px)_1fr]">
+                                    <div>
+                                      <Label>Enviar após</Label>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        value={stepItem.delay_minutes}
+                                        onChange={(e) =>
+                                          updateStep(index, {
+                                            delay_minutes:
+                                              Number(e.target.value) || 0,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <label className="flex items-end gap-2 rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-ink-soft">
+                                      <input
+                                        type="checkbox"
+                                        checked={stepItem.wait_for_reply}
+                                        onChange={(e) =>
+                                          updateStep(index, {
+                                            wait_for_reply: e.target.checked,
+                                          })
+                                        }
+                                      />
+                                      <span>
+                                        Aguardar a próxima resposta antes de
+                                        enviar
+                                      </span>
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <label className="flex items-end gap-2 pb-2 text-sm text-ink-soft">
-                              <input
-                                type="checkbox"
-                                checked={stepItem.wait_for_reply}
-                                onChange={(e) =>
-                                  updateStep(index, {
-                                    wait_for_reply: e.target.checked,
-                                  })
-                                }
-                              />
-                              Após próxima resposta
-                            </label>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        })}
+                      </div>
 
                       <p className="text-xs text-ink-muted">
                         Variáveis: {"{{username}}"}, {"{{nome}}"},{" "}
