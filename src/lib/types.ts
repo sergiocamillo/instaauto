@@ -57,6 +57,7 @@ export interface AutomationAction {
     message?: string;
     /** Texto da resposta pública ao comentário (ação reply_comment). */
     comment_reply?: string;
+    comment_replies?: string[];
     steps?: Array<{
       message: string;
       delay_minutes?: number;
@@ -65,6 +66,10 @@ export interface AutomationAction {
     link?: string;
     file_id?: ID;
     tag?: string;
+    /** Require the user to follow the account before link/file delivery. */
+    require_follow?: boolean;
+    follow_prompt?: string;
+    follow_button_label?: string;
     button_label?: string;
     /** Follow-up message sent after the button is clicked. */
     button_followup?: string;

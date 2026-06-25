@@ -38,10 +38,14 @@ const KEYWORD_EXAMPLES = ["LINK", "PDF", "GUIA", "QUERO", "IA", "AULA"];
 interface ActionConfigState {
   message: string;
   comment_reply: string;
+  comment_replies: string[];
   steps: MessageStepState[];
   link: string;
   file_id: string;
   tag: string;
+  require_follow: boolean;
+  follow_prompt: string;
+  follow_button_label: string;
   button_label: string;
   button_followup: string;
 }
@@ -61,10 +65,15 @@ const defaultStep: MessageStepState = {
 const emptyConfig: ActionConfigState = {
   message: "",
   comment_reply: "",
+  comment_replies: [""],
   steps: [{ ...defaultStep }],
   link: "",
   file_id: "",
   tag: "",
+  require_follow: false,
+  follow_prompt:
+    "Antes de liberar o material, siga meu perfil e toque no botão abaixo.",
+  follow_button_label: "Já estou seguindo",
   button_label: "",
   button_followup: "",
 };
@@ -114,6 +123,11 @@ export function CreateAutomation() {
       Object.assign(merged, {
         message: a.config.message ?? merged.message,
         comment_reply: a.config.comment_reply ?? merged.comment_reply,
+        comment_replies: Array.isArray(a.config.comment_replies)
+          ? a.config.comment_replies.map((reply) => String(reply))
+          : a.config.comment_reply
+            ? [String(a.config.comment_reply)]
+            : merged.comment_replies,
         steps:
           steps && steps.length > 0
             ? steps
@@ -123,6 +137,12 @@ export function CreateAutomation() {
         link: a.config.link ?? merged.link,
         file_id: a.config.file_id ?? merged.file_id,
         tag: a.config.tag ?? merged.tag,
+        require_follow: Boolean(
+          a.config.require_follow ?? merged.require_follow,
+        ),
+        follow_prompt: a.config.follow_prompt ?? merged.follow_prompt,
+        follow_button_label:
+          a.config.follow_button_label ?? merged.follow_button_label,
         button_label: a.config.button_label ?? merged.button_label,
         button_followup: a.config.button_followup ?? merged.button_followup,
       });
@@ -157,6 +177,37 @@ export function CreateAutomation() {
           ? [{ ...defaultStep }]
           : c.steps.filter((_, i) => i !== index),
     }));
+  }
+
+  function updateCommentReply(index: number, value: string) {
+    setConfig((c) => ({
+      ...c,
+      comment_reply: index === 0 ? value : c.comment_reply,
+      comment_replies: c.comment_replies.map((reply, i) =>
+        i === index ? value : reply,
+      ),
+    }));
+  }
+
+  function addCommentReply() {
+    setConfig((c) => ({
+      ...c,
+      comment_replies: [...c.comment_replies, ""],
+    }));
+  }
+
+  function removeCommentReply(index: number) {
+    setConfig((c) => {
+      const next =
+        c.comment_replies.length === 1
+          ? [""]
+          : c.comment_replies.filter((_, i) => i !== index);
+      return {
+        ...c,
+        comment_reply: next[0] ?? "",
+        comment_replies: next,
+      };
+    });
   }
 
   function toggleAction(a: ActionType) {
@@ -217,6 +268,10 @@ export function CreateAutomation() {
             config.message ||
             undefined,
           comment_reply: config.comment_reply || undefined,
+          comment_replies:
+            type === "reply_comment"
+              ? config.comment_replies.filter((reply) => reply.trim())
+              : undefined,
           steps:
             type === "send_dm" ||
             type === "send_link" ||
@@ -233,6 +288,20 @@ export function CreateAutomation() {
           link: config.link || undefined,
           file_id: config.file_id || undefined,
           tag: config.tag || undefined,
+          require_follow:
+            type === "send_link" || type === "send_file"
+              ? config.require_follow
+              : undefined,
+          follow_prompt:
+            (type === "send_link" || type === "send_file") &&
+            config.require_follow
+              ? config.follow_prompt
+              : undefined,
+          follow_button_label:
+            (type === "send_link" || type === "send_file") &&
+            config.require_follow
+              ? config.follow_button_label
+              : undefined,
           button_label: config.button_label || undefined,
           button_followup: config.button_followup || undefined,
         },
@@ -620,6 +689,10 @@ export function CreateAutomation() {
                         </div>
                       ))}
 
+                      <p className="text-xs text-ink-muted">
+                        Variáveis: {"{{username}}"}, {"{{nome}}"},{" "}
+                        {"{{comentario}}"}, {"{{keyword}}"}.
+                      </p>
                       <SuggestionChips
                         templates={DM_TEMPLATES}
                         onPick={(t) => updateStep(0, { message: t })}
@@ -628,20 +701,55 @@ export function CreateAutomation() {
                   )}
 
                   {actions.includes("reply_comment") && (
-                    <div>
-                      <Label hint="aparece publicamente no comentário">
-                        Resposta ao comentário
-                      </Label>
-                      <Textarea
-                        placeholder="Prontinho! Te mandei tudo na DM 📩"
-                        value={config.comment_reply}
-                        onChange={(e) =>
-                          update({ comment_reply: e.target.value })
-                        }
-                      />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label hint="uma variação é escolhida por comentário">
+                          Respostas ao comentário
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addCommentReply}
+                        >
+                          <Plus className="size-4" />
+                          Variação
+                        </Button>
+                      </div>
+                      {config.comment_replies.map((reply, index) => (
+                        <div
+                          key={index}
+                          className="rounded-lg border border-border bg-surface p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold text-ink-muted">
+                              Variação {index + 1}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeCommentReply(index)}
+                              className="rounded-md p-1 text-ink-muted hover:bg-danger-soft hover:text-danger"
+                              aria-label="Remover variação"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                          <Textarea
+                            placeholder="Prontinho, {{username}}! Te mandei tudo na DM 📩"
+                            value={reply}
+                            onChange={(e) =>
+                              updateCommentReply(index, e.target.value)
+                            }
+                          />
+                        </div>
+                      ))}
+                      <p className="text-xs text-ink-muted">
+                        Variáveis: {"{{username}}"}, {"{{nome}}"},{" "}
+                        {"{{comentario}}"}, {"{{keyword}}"}.
+                      </p>
                       <SuggestionChips
                         templates={COMMENT_REPLY_TEMPLATES}
-                        onPick={(t) => update({ comment_reply: t })}
+                        onPick={(t) => updateCommentReply(0, t)}
                       />
                     </div>
                   )}
@@ -698,6 +806,58 @@ export function CreateAutomation() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {(actions.includes("send_link") ||
+                    actions.includes("send_file")) && (
+                    <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
+                      <label className="flex items-start gap-2 text-sm text-ink">
+                        <input
+                          type="checkbox"
+                          checked={config.require_follow}
+                          onChange={(e) =>
+                            update({ require_follow: e.target.checked })
+                          }
+                          className="mt-1"
+                        />
+                        <span>
+                          <span className="block font-medium">
+                            Exigir que siga antes de entregar
+                          </span>
+                          <span className="text-xs text-ink-muted">
+                            O link ou arquivo fica pendente até a pessoa tocar
+                            no botão e a Meta confirmar que segue o perfil.
+                          </span>
+                        </span>
+                      </label>
+
+                      {config.require_follow && (
+                        <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+                          <div>
+                            <Label>Mensagem de confirmação</Label>
+                            <Textarea
+                              placeholder="Antes de liberar o material, siga meu perfil e toque no botão abaixo."
+                              value={config.follow_prompt}
+                              onChange={(e) =>
+                                update({ follow_prompt: e.target.value })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>Botão</Label>
+                            <Input
+                              placeholder="Já estou seguindo"
+                              value={config.follow_button_label}
+                              onChange={(e) =>
+                                update({
+                                  follow_button_label: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
